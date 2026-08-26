@@ -1,3 +1,4 @@
+
 /**
  * =========================================================
  * BOKKARA — TOP 50 CITIES API
@@ -38,12 +39,6 @@ const CACHE_DURATION =
 
 // =========================================================
 // GOOGLE SEARCH QUERIES
-// =========================================================
-//
-// These are discovery searches, NOT hardcoded cities.
-//
-// Google discovers the actual destinations.
-//
 // =========================================================
 
 const SEARCH_QUERIES = [
@@ -118,6 +113,11 @@ const SEARCH_QUERIES = [
 // =========================================================
 // GOOGLE FIELD MASK
 // =========================================================
+//
+// We now request addressComponents so we can identify
+// the actual city using Google's structured address data.
+//
+// =========================================================
 
 const FIELD_MASK = [
 
@@ -126,6 +126,8 @@ const FIELD_MASK = [
   "places.displayName",
 
   "places.formattedAddress",
+
+  "places.addressComponents",
 
   "places.rating",
 
@@ -156,13 +158,82 @@ let citiesCacheExpires = 0;
 function normalize(value) {
 
   if (!value) {
+
     return "";
+
   }
 
   return String(value)
+
     .trim()
+
     .toLowerCase()
-    .replace(/\s+/g, " ");
+
+    .replace(
+      /\s+/g,
+      " "
+    );
+
+}
+
+
+// =========================================================
+// GET ADDRESS COMPONENT
+// =========================================================
+//
+// Google Places returns structured address components such as:
+//
+// locality
+// administrativeArea
+// country
+// postalCode
+//
+// We use these instead of trying to split the formatted address.
+//
+// =========================================================
+
+function getAddressComponent(
+  components,
+  type
+) {
+
+  if (
+    !Array.isArray(
+      components
+    )
+  ) {
+
+    return "";
+
+  }
+
+
+  const component =
+    components.find(
+      item =>
+        Array.isArray(
+          item.types
+        ) &&
+        item.types.includes(
+          type
+        )
+    );
+
+
+  if (
+    !component
+  ) {
+
+    return "";
+
+  }
+
+
+  return (
+    component.longText ||
+    component.shortText ||
+    ""
+  ).trim();
 
 }
 
@@ -171,25 +242,68 @@ function normalize(value) {
 // EXTRACT COUNTRY
 // =========================================================
 
-function extractCountry(address) {
+function extractCountry(
+  place
+) {
+
+  /*
+   * First use Google's structured
+   * country component.
+   */
+
+  const structuredCountry =
+    getAddressComponent(
+      place.addressComponents,
+      "country"
+    );
+
+
+  if (
+    structuredCountry
+  ) {
+
+    return structuredCountry;
+
+  }
+
+
+  /*
+   * Fallback to formatted address
+   * if structured data is unavailable.
+   */
+
+  const address =
+    place.formattedAddress ||
+    "";
+
 
   if (!address) {
+
     return "";
+
   }
+
 
   const parts =
     address
       .split(",")
-      .map(part => part.trim())
+      .map(
+        part =>
+          part.trim()
+      )
       .filter(Boolean);
 
-  if (parts.length >= 2) {
+
+  if (
+    parts.length >= 2
+  ) {
 
     return parts[
       parts.length - 1
     ];
 
   }
+
 
   return "";
 
@@ -200,36 +314,209 @@ function extractCountry(address) {
 // EXTRACT CITY
 // =========================================================
 
-function extractCity(address) {
+function extractCity(
+  place
+) {
+
+  /*
+   * IMPORTANT:
+   *
+   * Use Google's locality component.
+   *
+   * This prevents postal codes such as:
+   *
+   * 79240-000
+   *
+   * from being displayed as city names.
+   */
+
+  const locality =
+    getAddressComponent(
+      place.addressComponents,
+      "locality"
+    );
+
+
+  if (
+    locality
+  ) {
+
+    return locality;
+
+  }
+
+
+  /*
+   * Some locations may not have
+   * a locality component.
+   *
+   * Try postal-town as a fallback.
+   */
+
+  const postalTown =
+    getAddressComponent(
+      place.addressComponents,
+      "postal_town"
+    );
+
+
+  if (
+    postalTown
+  ) {
+
+    return postalTown;
+
+  }
+
+
+  /*
+   * Administrative area fallback.
+   *
+   * This is preferable to returning
+   * a postal code.
+   */
+
+  const adminArea =
+    getAddressComponent(
+      place.addressComponents,
+      "administrative_area_level_2"
+    );
+
+
+  if (
+    adminArea
+  ) {
+
+    return adminArea;
+
+  }
+
+
+  /*
+   * Last-resort fallback using the
+   * formatted address.
+   */
+
+  const address =
+    place.formattedAddress ||
+    "";
+
 
   if (!address) {
+
     return "";
+
   }
+
 
   const parts =
     address
       .split(",")
-      .map(part => part.trim())
+      .map(
+        part =>
+          part.trim()
+      )
       .filter(Boolean);
 
 
-  if (parts.length >= 3) {
+  /*
+   * Never return a numeric postal code.
+   */
 
-    return parts[
-      parts.length - 2
-    ];
+  const possibleCity =
+    parts.length >= 3
+      ? parts[parts.length - 2]
+      : parts[0] || "";
+
+
+  if (
+    /^[0-9]+(?:-[0-9]+)?$/.test(
+      possibleCity
+    )
+  ) {
+
+    return "";
 
   }
 
 
-  if (parts.length === 2) {
+  return possibleCity;
 
-    return parts[0];
+}
+
+
+// =========================================================
+// VALIDATE CITY NAME
+// =========================================================
+
+function isValidCityName(
+  city
+) {
+
+  if (!city) {
+
+    return false;
 
   }
 
 
-  return "";
+  const value =
+    String(city).trim();
+
+
+  if (!value) {
+
+    return false;
+
+  }
+
+
+  /*
+   * Reject postal codes.
+   */
+
+  if (
+    /^[0-9]+(?:-[0-9]+)?$/.test(
+      value
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  /*
+   * Reject values that are almost
+   * entirely numeric.
+   */
+
+  const digits =
+    (
+      value.match(
+        /\d/g
+      ) || []
+    ).length;
+
+
+  const characters =
+    value.replace(
+      /\s/g,
+      ""
+    ).length;
+
+
+  if (
+    characters > 0 &&
+    digits / characters > 0.5
+  ) {
+
+    return false;
+
+  }
+
+
+  return true;
 
 }
 
@@ -263,7 +550,10 @@ function calculatePlaceScore(
       Math.min(
         100,
         (
-          (safeRating - 4.5) /
+          (
+            safeRating -
+            4.5
+          ) /
           0.5
         ) * 100
       )
@@ -271,11 +561,7 @@ function calculatePlaceScore(
 
 
   /*
-   * Review score:
-   *
-   * Uses logarithmic scaling so
-   * extremely large review counts
-   * don't completely dominate.
+   * Review score.
    */
 
   const reviewScore =
@@ -318,7 +604,8 @@ async function searchGoogle(
       GOOGLE_PLACES_URL,
       {
 
-        method: "POST",
+        method:
+          "POST",
 
         headers: {
 
@@ -333,27 +620,34 @@ async function searchGoogle(
 
         },
 
-        body: JSON.stringify({
+        body:
+          JSON.stringify({
 
-          textQuery: query,
+            textQuery:
+              query,
 
-          maxResultCount: 20,
+            maxResultCount:
+              20,
 
-          minRating: MIN_RATING,
+            minRating:
+              MIN_RATING,
 
-          rankPreference:
-            "RELEVANCE"
+            rankPreference:
+              "RELEVANCE"
 
-        })
+          })
 
       }
     );
 
 
-  if (!response.ok) {
+  if (
+    !response.ok
+  ) {
 
     const error =
       await response.text();
+
 
     throw new Error(
       `Google Places ${response.status}: ${error}`
@@ -467,25 +761,48 @@ async function buildTopCities(
       }
 
 
-      const address =
-        place.formattedAddress ||
-        "";
-
+      // -----------------------------------------------
+      // CITY
+      // -----------------------------------------------
 
       const city =
         extractCity(
-          address
+          place
         );
 
+
+      /*
+       * Do not allow postal codes
+       * or invalid city values.
+       */
+
+      if (
+        !isValidCityName(
+          city
+        )
+      ) {
+
+        continue;
+
+      }
+
+
+      // -----------------------------------------------
+      // COUNTRY
+      // -----------------------------------------------
 
       const country =
         extractCountry(
-          address
+          place
         );
 
 
-      if (!city) {
+      if (
+        !country
+      ) {
+
         continue;
+
       }
 
 
@@ -527,15 +844,20 @@ async function buildTopCities(
 
             reviewCount,
 
-            placeCount: 1,
+            placeCount:
+              1,
 
             photo:
-              place.photos?.[0]
+              place
+                .photos
+                ?. [0]
                 ?.name ||
               null,
 
             photoAttributions:
-              place.photos?.[0]
+              place
+                .photos
+                ?. [0]
                 ?.authorAttributions ||
               [],
 
@@ -548,7 +870,8 @@ async function buildTopCities(
               null,
 
             representativePlace:
-              place.displayName
+              place
+                .displayName
                 ?.text ||
               ""
 
@@ -572,7 +895,8 @@ async function buildTopCities(
         );
 
 
-      existing.placeCount += 1;
+      existing.placeCount +=
+        1;
 
 
       existing.score +=
@@ -603,26 +927,36 @@ async function buildTopCities(
         existing.rating =
           rating;
 
+
         existing.photo =
-          place.photos?.[0]
+          place
+            .photos
+            ?. [0]
             ?.name ||
           existing.photo;
 
+
         existing.photoAttributions =
-          place.photos?.[0]
+          place
+            .photos
+            ?. [0]
             ?.authorAttributions ||
           existing.photoAttributions;
+
 
         existing.placeId =
           place.id ||
           existing.placeId;
 
+
         existing.googleMapsUrl =
           place.googleMapsUri ||
           existing.googleMapsUrl;
 
+
         existing.representativePlace =
-          place.displayName
+          place
+            .displayName
             ?.text ||
           existing.representativePlace;
 
@@ -686,12 +1020,17 @@ async function buildTopCities(
   // =======================================================
 
   return cities
+
     .slice(
       0,
       DEFAULT_LIMIT
     )
+
     .map(
-      (city, index) => ({
+      (
+        city,
+        index
+      ) => ({
 
         rank:
           index + 1,
@@ -734,6 +1073,7 @@ async function buildTopCities(
           city.photoAttributions
 
       })
+
     );
 
 }
@@ -782,15 +1122,19 @@ async function getGooglePhoto(
     await fetch(
       googlePhotoUrl,
       {
-        redirect: "follow"
+        redirect:
+          "follow"
       }
     );
 
 
-  if (!response.ok) {
+  if (
+    !response.ok
+  ) {
 
     const error =
       await response.text();
+
 
     throw new Error(
       `Google photo ${response.status}: ${error}`
@@ -813,8 +1157,11 @@ async function getGooglePhoto(
 
 
   return {
+
     image,
+
     contentType
+
   };
 
 }
@@ -838,10 +1185,12 @@ export default async function handler(
     "*"
   );
 
+
   res.setHeader(
     "Access-Control-Allow-Methods",
     "GET, OPTIONS"
   );
+
 
   res.setHeader(
     "Access-Control-Allow-Headers",
@@ -854,7 +1203,8 @@ export default async function handler(
   // =======================================================
 
   if (
-    req.method === "OPTIONS"
+    req.method ===
+    "OPTIONS"
   ) {
 
     return res
@@ -869,14 +1219,16 @@ export default async function handler(
   // =======================================================
 
   if (
-    req.method !== "GET"
+    req.method !==
+    "GET"
   ) {
 
     return res
       .status(405)
       .json({
 
-        success: false,
+        success:
+          false,
 
         error:
           "Method not allowed."
@@ -891,16 +1243,20 @@ export default async function handler(
   // =======================================================
 
   const apiKey =
-    process.env.GOOGLE_PLACES_API_KEY;
+    process.env
+      .GOOGLE_PLACES_API_KEY;
 
 
-  if (!apiKey) {
+  if (
+    !apiKey
+  ) {
 
     return res
       .status(500)
       .json({
 
-        success: false,
+        success:
+          false,
 
         error:
           "GOOGLE_PLACES_API_KEY is missing."
@@ -918,7 +1274,9 @@ export default async function handler(
     req.query?.photo;
 
 
-  if (photo) {
+  if (
+    photo
+  ) {
 
     try {
 
@@ -948,7 +1306,9 @@ export default async function handler(
         );
 
 
-    } catch (error) {
+    } catch (
+      error
+    ) {
 
       console.error(
         "Photo error:",
@@ -960,7 +1320,8 @@ export default async function handler(
         .status(500)
         .json({
 
-          success: false,
+          success:
+            false,
 
           error:
             "Unable to retrieve photo."
@@ -986,16 +1347,19 @@ export default async function handler(
 
   if (
     citiesCache &&
-    citiesCacheExpires > now
+    citiesCacheExpires >
+      now
   ) {
 
     return res
       .status(200)
       .json({
 
-        success: true,
+        success:
+          true,
 
-        cached: true,
+        cached:
+          true,
 
         count:
           citiesCache.length,
@@ -1041,12 +1405,15 @@ export default async function handler(
       .status(200)
       .json({
 
-        success: true,
+        success:
+          true,
 
-        cached: false,
+        cached:
+          false,
 
         generatedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
 
         count:
           cities.length,
@@ -1056,7 +1423,9 @@ export default async function handler(
       });
 
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     console.error(
       "Top cities error:",
@@ -1068,7 +1437,8 @@ export default async function handler(
       .status(500)
       .json({
 
-        success: false,
+        success:
+          false,
 
         error:
           "Unable to retrieve top cities.",
