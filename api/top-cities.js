@@ -1,5 +1,3 @@
-lets redo the backend end 
-
 /**
  * =========================================================
  * BOKKARA — TOP 50 CITIES API
