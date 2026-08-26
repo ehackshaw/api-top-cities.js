@@ -1,33 +1,24 @@
+lets redo the backend end 
+
 /**
  * =========================================================
  * BOKKARA — TOP 50 CITIES API
  * =========================================================
  *
+ * Endpoint:
+ *
  * GET /api/top-cities
+ *
+ * Optional:
  *
  * GET /api/top-cities?limit=50
  *
- * PHOTO:
+ * Photo:
  *
  * GET /api/top-cities?photo=PHOTO_RESOURCE_NAME
  *
  * =========================================================
- *
- * RETURNS CITIES ONLY
- *
- * No:
- * - Parks
- * - Museums
- * - Restaurants
- * - Hotels
- * - Attractions
- * - Landmarks
- * - Beaches
- * - Airports
- *
- * =========================================================
  */
-
 
 const GOOGLE_PLACES_URL =
   "https://places.googleapis.com/v1/places:searchText";
@@ -39,213 +30,95 @@ const GOOGLE_PLACES_URL =
 
 const DEFAULT_LIMIT = 50;
 
-const MAX_RESULTS_PER_QUERY = 20;
+const MIN_RATING = 4.5;
 
-const MIN_RATING = 4.0;
-
-const MIN_REVIEWS = 25;
+const MIN_REVIEWS = 100;
 
 const CACHE_DURATION =
   1000 * 60 * 60 * 6;
 
 
 // =========================================================
-// CITY TYPES
-// =========================================================
-
-const CITY_TYPES = [
-
-  "locality",
-
-  "postal_town",
-
-  "administrative_area_level_2"
-
-];
-
-
-// =========================================================
-// BLOCKED TYPES
-// =========================================================
-
-const BLOCKED_TYPES = [
-
-  "park",
-
-  "museum",
-
-  "restaurant",
-
-  "cafe",
-
-  "bar",
-
-  "hotel",
-
-  "tourist_attraction",
-
-  "point_of_interest",
-
-  "landmark",
-
-  "shopping_mall",
-
-  "shopping_center",
-
-  "airport",
-
-  "beach",
-
-  "campground",
-
-  "stadium",
-
-  "amusement_park",
-
-  "aquarium",
-
-  "zoo",
-
-  "art_gallery",
-
-  "church",
-
-  "mosque",
-
-  "hindu_temple",
-
-  "synagogue",
-
-  "night_club",
-
-  "casino",
-
-  "spa",
-
-  "store",
-
-  "school",
-
-  "university",
-
-  "hospital",
-
-  "movie_theater",
-
-  "gym",
-
-  "library",
-
-  "cemetery",
-
-  "natural_feature"
-
-];
-
-
-// =========================================================
-// CITY SEARCHES
+// GOOGLE SEARCH QUERIES
 // =========================================================
 //
-// These searches are intentionally city-focused.
+// These are discovery searches, NOT hardcoded cities.
 //
-// They are NOT individual hardcoded cities.
+// Google discovers the actual destinations.
 //
 // =========================================================
 
 const SEARCH_QUERIES = [
 
-  "world famous cities",
+  "top tourist attractions in North America",
 
-  "best cities in North America",
+  "top tourist attractions in South America",
 
-  "best cities in South America",
+  "top tourist attractions in Europe",
 
-  "best cities in Central America",
+  "top tourist attractions in Asia",
 
-  "best cities in the Caribbean",
+  "top tourist attractions in Africa",
 
-  "best cities in Europe",
+  "top tourist attractions in Australia",
 
-  "best cities in Asia",
+  "top tourist attractions in New Zealand",
 
-  "best cities in Africa",
+  "best tourist destinations in United States",
 
-  "best cities in Oceania",
+  "best tourist destinations in Canada",
 
-  "best cities in Australia",
+  "best tourist destinations in Mexico",
 
-  "best cities in New Zealand",
+  "best tourist destinations in Caribbean",
 
-  "best cities in United States",
+  "best tourist destinations in Brazil",
 
-  "best cities in Canada",
+  "best tourist destinations in Argentina",
 
-  "best cities in Mexico",
+  "best tourist destinations in Colombia",
 
-  "best cities in Brazil",
+  "best tourist destinations in Peru",
 
-  "best cities in Argentina",
+  "best tourist destinations in Chile",
 
-  "best cities in Colombia",
+  "best tourist destinations in United Kingdom",
 
-  "best cities in Peru",
+  "best tourist destinations in France",
 
-  "best cities in Chile",
+  "best tourist destinations in Italy",
 
-  "best cities in United Kingdom",
+  "best tourist destinations in Spain",
 
-  "best cities in France",
+  "best tourist destinations in Germany",
 
-  "best cities in Italy",
+  "best tourist destinations in Greece",
 
-  "best cities in Spain",
+  "best tourist destinations in Portugal",
 
-  "best cities in Germany",
+  "best tourist destinations in Japan",
 
-  "best cities in Portugal",
+  "best tourist destinations in Thailand",
 
-  "best cities in Greece",
+  "best tourist destinations in Singapore",
 
-  "best cities in Netherlands",
+  "best tourist destinations in Indonesia",
 
-  "best cities in Switzerland",
+  "best tourist destinations in South Korea",
 
-  "best cities in Austria",
+  "best tourist destinations in United Arab Emirates",
 
-  "best cities in Turkey",
+  "best tourist destinations in South Africa",
 
-  "best cities in Japan",
+  "best tourist destinations in Egypt",
 
-  "best cities in South Korea",
-
-  "best cities in Thailand",
-
-  "best cities in Singapore",
-
-  "best cities in Indonesia",
-
-  "best cities in Malaysia",
-
-  "best cities in Vietnam",
-
-  "best cities in Philippines",
-
-  "best cities in India",
-
-  "best cities in United Arab Emirates",
-
-  "best cities in South Africa",
-
-  "best cities in Egypt",
-
-  "best cities in Morocco"
+  "best tourist destinations in Morocco"
 
 ];
 
 
 // =========================================================
-// FIELD MASK
+// GOOGLE FIELD MASK
 // =========================================================
 
 const FIELD_MASK = [
@@ -255,8 +128,6 @@ const FIELD_MASK = [
   "places.displayName",
 
   "places.formattedAddress",
-
-  "places.addressComponents",
 
   "places.rating",
 
@@ -272,7 +143,7 @@ const FIELD_MASK = [
 
 
 // =========================================================
-// CACHE
+// MEMORY CACHE
 // =========================================================
 
 let citiesCache = null;
@@ -281,215 +152,40 @@ let citiesCacheExpires = 0;
 
 
 // =========================================================
-// NORMALIZE
+// NORMALIZE TEXT
 // =========================================================
 
-function normalize(
-  value
-) {
+function normalize(value) {
 
   if (!value) {
-
     return "";
-
   }
 
   return String(value)
-
     .trim()
-
     .toLowerCase()
-
     .replace(/\s+/g, " ");
 
 }
 
 
 // =========================================================
-// ADDRESS COMPONENT
+// EXTRACT COUNTRY
 // =========================================================
 
-function getAddressComponent(
-  place,
-  wantedTypes
-) {
+function extractCountry(address) {
 
-  const components =
-    place?.addressComponents || [];
-
-
-  for (
-    const component
-    of components
-  ) {
-
-    const types =
-      component.types || [];
-
-
-    for (
-      const wantedType
-      of wantedTypes
-    ) {
-
-      if (
-        types.includes(
-          wantedType
-        )
-      ) {
-
-        return (
-
-          component.longText ||
-
-          component.shortText ||
-
-          ""
-
-        );
-
-      }
-
-    }
-
+  if (!address) {
+    return "";
   }
-
-
-  return "";
-
-}
-
-
-// =========================================================
-// CITY NAME
-// =========================================================
-
-function getCityName(
-  place
-) {
-
-  /*
-   * First choice:
-   * locality
-   */
-
-  const locality =
-    getAddressComponent(
-      place,
-      [
-        "locality"
-      ]
-    );
-
-
-  if (
-    locality
-  ) {
-
-    return locality;
-
-  }
-
-
-  /*
-   * Second choice:
-   * postal town
-   */
-
-  const postalTown =
-    getAddressComponent(
-      place,
-      [
-        "postal_town"
-      ]
-    );
-
-
-  if (
-    postalTown
-  ) {
-
-    return postalTown;
-
-  }
-
-
-  /*
-   * Third choice:
-   * administrative level 2
-   */
-
-  const adminArea =
-    getAddressComponent(
-      place,
-      [
-        "administrative_area_level_2"
-      ]
-    );
-
-
-  if (
-    adminArea
-  ) {
-
-    return adminArea;
-
-  }
-
-
-  return "";
-
-}
-
-
-// =========================================================
-// COUNTRY
-// =========================================================
-
-function getCountry(
-  place
-) {
-
-  const country =
-    getAddressComponent(
-      place,
-      [
-        "country"
-      ]
-    );
-
-
-  if (
-    country
-  ) {
-
-    return country;
-
-  }
-
-
-  /*
-   * Fallback to formatted address.
-   */
-
-  const address =
-    place?.formattedAddress ||
-    "";
-
 
   const parts =
     address
       .split(",")
-      .map(
-        part =>
-          part.trim()
-      )
+      .map(part => part.trim())
       .filter(Boolean);
 
-
-  if (
-    parts.length >= 2
-  ) {
+  if (parts.length >= 2) {
 
     return parts[
       parts.length - 1
@@ -497,6 +193,43 @@ function getCountry(
 
   }
 
+  return "";
+
+}
+
+
+// =========================================================
+// EXTRACT CITY
+// =========================================================
+
+function extractCity(address) {
+
+  if (!address) {
+    return "";
+  }
+
+  const parts =
+    address
+      .split(",")
+      .map(part => part.trim())
+      .filter(Boolean);
+
+
+  if (parts.length >= 3) {
+
+    return parts[
+      parts.length - 2
+    ];
+
+  }
+
+
+  if (parts.length === 2) {
+
+    return parts[0];
+
+  }
+
 
   return "";
 
@@ -504,133 +237,27 @@ function getCountry(
 
 
 // =========================================================
-// IS CITY
+// CALCULATE PLACE SCORE
 // =========================================================
 
-function isCity(
-  place
-) {
-
-  if (!place) {
-
-    return false;
-
-  }
-
-
-  const types =
-    Array.isArray(
-      place.types
-    )
-      ? place.types
-      : [];
-
-
-  /*
-   * If Google explicitly identifies the result
-   * as an attraction/business/etc., reject it.
-   */
-
-  const blocked =
-    types.some(
-      type =>
-        BLOCKED_TYPES.includes(
-          type
-        )
-    );
-
-
-  if (
-    blocked
-  ) {
-
-    return false;
-
-  }
-
-
-  /*
-   * City must have one of the accepted
-   * geographic city types.
-   */
-
-  const cityType =
-    types.some(
-      type =>
-        CITY_TYPES.includes(
-          type
-        )
-    );
-
-
-  if (
-    !cityType
-  ) {
-
-    return false;
-
-  }
-
-
-  /*
-   * It must have a real city name.
-   */
-
-  const city =
-    getCityName(
-      place
-    );
-
-
-  if (
-    !city
-  ) {
-
-    return false;
-
-  }
-
-
-  /*
-   * It must have a country.
-   */
-
-  const country =
-    getCountry(
-      place
-    );
-
-
-  if (
-    !country
-  ) {
-
-    return false;
-
-  }
-
-
-  return true;
-
-}
-
-
-// =========================================================
-// SCORE
-// =========================================================
-
-function calculateScore(
+function calculatePlaceScore(
   rating,
-  reviews
+  reviewCount
 ) {
 
   const safeRating =
     Number(rating) || 0;
 
-
   const safeReviews =
-    Number(reviews) || 0;
+    Number(reviewCount) || 0;
 
+
+  /*
+   * Rating score:
+   *
+   * 4.5 = 0
+   * 5.0 = 100
+   */
 
   const ratingScore =
     Math.max(
@@ -638,12 +265,20 @@ function calculateScore(
       Math.min(
         100,
         (
-          (safeRating - 4) /
-          1
+          (safeRating - 4.5) /
+          0.5
         ) * 100
       )
     );
 
+
+  /*
+   * Review score:
+   *
+   * Uses logarithmic scaling so
+   * extremely large review counts
+   * don't completely dominate.
+   */
 
   const reviewScore =
     Math.min(
@@ -651,20 +286,21 @@ function calculateScore(
       (
         Math.log10(
           Math.max(
-            1,
+            10,
             safeReviews
           )
-        ) / 6
+        ) / 5
       ) * 100
     );
 
 
+  /*
+   * Rating is weighted more heavily.
+   */
+
   return (
-
     ratingScore * 0.70 +
-
     reviewScore * 0.30
-
   );
 
 }
@@ -684,8 +320,7 @@ async function searchGoogle(
       GOOGLE_PLACES_URL,
       {
 
-        method:
-          "POST",
+        method: "POST",
 
         headers: {
 
@@ -700,31 +335,27 @@ async function searchGoogle(
 
         },
 
-        body:
-          JSON.stringify({
+        body: JSON.stringify({
 
-            textQuery:
-              query,
+          textQuery: query,
 
-            maxResultCount:
-              MAX_RESULTS_PER_QUERY,
+          maxResultCount: 20,
 
-            rankPreference:
-              "RELEVANCE"
+          minRating: MIN_RATING,
 
-          })
+          rankPreference:
+            "RELEVANCE"
+
+        })
 
       }
     );
 
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
 
     const error =
       await response.text();
-
 
     throw new Error(
       `Google Places ${response.status}: ${error}`
@@ -739,7 +370,7 @@ async function searchGoogle(
 
 
 // =========================================================
-// BUILD CITIES
+// BUILD TOP CITIES
 // =========================================================
 
 async function buildTopCities(
@@ -751,7 +382,7 @@ async function buildTopCities(
 
 
   /*
-   * Run searches in parallel.
+   * Run all discovery searches.
    */
 
   const responses =
@@ -768,17 +399,17 @@ async function buildTopCities(
     );
 
 
-  /*
-   * Process every successful response.
-   */
+  // =======================================================
+  // PROCESS RESULTS
+  // =======================================================
 
   for (
-    const result
+    const response
     of responses
   ) {
 
     if (
-      result.status !==
+      response.status !==
       "fulfilled"
     ) {
 
@@ -788,10 +419,9 @@ async function buildTopCities(
 
 
     const places =
-      result
+      response
         .value
-        ?.places ||
-      [];
+        ?.places || [];
 
 
     for (
@@ -799,60 +429,21 @@ async function buildTopCities(
       of places
     ) {
 
-      /*
-       * ===================================================
-       * CITY FILTER
-       * ===================================================
-       */
-
-      if (
-        !isCity(
-          place
-        )
-      ) {
-
-        continue;
-
-      }
-
-
-      const city =
-        getCityName(
-          place
-        );
-
-
-      const country =
-        getCountry(
-          place
-        );
-
-
-      if (
-        !city ||
-        !country
-      ) {
-
-        continue;
-
-      }
-
-
       const rating =
         Number(
           place.rating
         ) || 0;
 
 
-      const reviews =
+      const reviewCount =
         Number(
           place.userRatingCount
         ) || 0;
 
 
-      /*
-       * Require a good rating.
-       */
+      // -----------------------------------------------
+      // RATING FILTER
+      // -----------------------------------------------
 
       if (
         rating <
@@ -864,12 +455,12 @@ async function buildTopCities(
       }
 
 
-      /*
-       * Require some reviews.
-       */
+      // -----------------------------------------------
+      // REVIEW FILTER
+      // -----------------------------------------------
 
       if (
-        reviews <
+        reviewCount <
         MIN_REVIEWS
       ) {
 
@@ -878,54 +469,52 @@ async function buildTopCities(
       }
 
 
-      /*
-       * Require a photo.
-       *
-       * This guarantees the frontend can display
-       * an image.
-       */
-
-      const photo =
-        place.photos?.[0]
-          ?.name ||
-        null;
+      const address =
+        place.formattedAddress ||
+        "";
 
 
-      if (
-        !photo
-      ) {
-
-        continue;
-
-      }
-
-
-      const key =
-        `${normalize(city)}|${normalize(country)}`;
-
-
-      const score =
-        calculateScore(
-          rating,
-          reviews
+      const city =
+        extractCity(
+          address
         );
 
 
-      /*
-       * =================================================
-       * NEW CITY
-       * =================================================
-       */
+      const country =
+        extractCountry(
+          address
+        );
+
+
+      if (!city) {
+        continue;
+      }
+
+
+      const cityKey =
+        `${normalize(city)}|${normalize(country)}`;
+
+
+      const placeScore =
+        calculatePlaceScore(
+          rating,
+          reviewCount
+        );
+
+
+      // =================================================
+      // NEW CITY
+      // =================================================
 
       if (
         !cityMap.has(
-          key
+          cityKey
         )
       ) {
 
         cityMap.set(
 
-          key,
+          cityKey,
 
           {
 
@@ -933,15 +522,24 @@ async function buildTopCities(
 
             country,
 
+            score:
+              placeScore,
+
             rating,
 
-            reviewCount:
-              reviews,
+            reviewCount,
 
-            score,
+            placeCount: 1,
 
-            appearances:
-              1,
+            photo:
+              place.photos?.[0]
+                ?.name ||
+              null,
+
+            photoAttributions:
+              place.photos?.[0]
+                ?.authorAttributions ||
+              [],
 
             placeId:
               place.id ||
@@ -951,17 +549,10 @@ async function buildTopCities(
               place.googleMapsUri ||
               null,
 
-            photoName:
-              photo,
-
-            photoAttributions:
-              place.photos?.[0]
-                ?.authorAttributions ||
-              [],
-
-            googleTypes:
-              place.types ||
-              []
+            representativePlace:
+              place.displayName
+                ?.text ||
+              ""
 
           }
 
@@ -973,45 +564,56 @@ async function buildTopCities(
       }
 
 
-      /*
-       * =================================================
-       * EXISTING CITY
-       * =================================================
-       */
+      // =================================================
+      // EXISTING CITY
+      // =================================================
 
       const existing =
         cityMap.get(
-          key
+          cityKey
         );
 
 
-      existing.appearances +=
-        1;
+      existing.placeCount += 1;
 
-
-      /*
-       * Multiple searches finding the same city
-       * increases its score.
-       */
 
       existing.score +=
-        score * 0.10;
+        placeScore * 0.25;
+
+
+      existing.reviewCount +=
+        reviewCount;
 
 
       /*
-       * Keep the better-rated Google result.
+       * Keep the strongest-rated
+       * representative place.
        */
 
+      const currentScore =
+        calculatePlaceScore(
+          existing.rating,
+          existing.reviewCount
+        );
+
+
       if (
-        rating >
-        existing.rating
+        placeScore >
+        currentScore
       ) {
 
         existing.rating =
           rating;
 
-        existing.reviewCount =
-          reviews;
+        existing.photo =
+          place.photos?.[0]
+            ?.name ||
+          existing.photo;
+
+        existing.photoAttributions =
+          place.photos?.[0]
+            ?.authorAttributions ||
+          existing.photoAttributions;
 
         existing.placeId =
           place.id ||
@@ -1021,17 +623,10 @@ async function buildTopCities(
           place.googleMapsUri ||
           existing.googleMapsUrl;
 
-        existing.photoName =
-          photo;
-
-        existing.photoAttributions =
-          place.photos?.[0]
-            ?.authorAttributions ||
-          existing.photoAttributions;
-
-        existing.googleTypes =
-          place.types ||
-          existing.googleTypes;
+        existing.representativePlace =
+          place.displayName
+            ?.text ||
+          existing.representativePlace;
 
       }
 
@@ -1040,11 +635,9 @@ async function buildTopCities(
   }
 
 
-  /*
-   * =======================================================
-   * SORT
-   * =======================================================
-   */
+  // =======================================================
+  // SORT
+  // =======================================================
 
   const cities =
     Array.from(
@@ -1053,10 +646,7 @@ async function buildTopCities(
 
 
   cities.sort(
-    (
-      a,
-      b
-    ) => {
+    (a, b) => {
 
       if (
         b.score !==
@@ -1093,24 +683,17 @@ async function buildTopCities(
   );
 
 
-  /*
-   * =======================================================
-   * RETURN 50
-   * =======================================================
-   */
+  // =======================================================
+  // TOP 50
+  // =======================================================
 
   return cities
-
     .slice(
       0,
       DEFAULT_LIMIT
     )
-
     .map(
-      (
-        city,
-        index
-      ) => ({
+      (city, index) => ({
 
         rank:
           index + 1,
@@ -1129,8 +712,8 @@ async function buildTopCities(
         reviewCount:
           city.reviewCount,
 
-        appearances:
-          city.appearances,
+        highlyRatedPlaces:
+          city.placeCount,
 
         score:
           Number(
@@ -1140,33 +723,36 @@ async function buildTopCities(
         placeId:
           city.placeId,
 
+        representativePlace:
+          city.representativePlace,
+
         googleMapsUrl:
           city.googleMapsUrl,
 
         photoName:
-          city.photoName,
+          city.photo,
 
         photoAttributions:
-          city.photoAttributions,
-
-        googleTypes:
-          city.googleTypes
+          city.photoAttributions
 
       })
-
     );
 
 }
 
 
 // =========================================================
-// GOOGLE PHOTO
+// PHOTO PROXY
 // =========================================================
 
 async function getGooglePhoto(
   photoName,
   apiKey
 ) {
+
+  /*
+   * Security check.
+   */
 
   if (
     !photoName ||
@@ -1185,7 +771,7 @@ async function getGooglePhoto(
   }
 
 
-  const photoUrl =
+  const googlePhotoUrl =
     `https://places.googleapis.com/v1/${photoName}/media` +
     `?maxWidthPx=1000` +
     `&maxHeightPx=1000` +
@@ -1196,21 +782,17 @@ async function getGooglePhoto(
 
   const response =
     await fetch(
-      photoUrl,
+      googlePhotoUrl,
       {
-        redirect:
-          "follow"
+        redirect: "follow"
       }
     );
 
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
 
     const error =
       await response.text();
-
 
     throw new Error(
       `Google photo ${response.status}: ${error}`
@@ -1233,25 +815,21 @@ async function getGooglePhoto(
 
 
   return {
-
     image,
-
     contentType
-
   };
 
 }
 
 
 // =========================================================
-// HANDLER
+// API HANDLER
 // =========================================================
 
 export default async function handler(
   req,
   res
 ) {
-
 
   // =======================================================
   // CORS
@@ -1262,12 +840,10 @@ export default async function handler(
     "*"
   );
 
-
   res.setHeader(
     "Access-Control-Allow-Methods",
     "GET, OPTIONS"
   );
-
 
   res.setHeader(
     "Access-Control-Allow-Headers",
@@ -1280,8 +856,7 @@ export default async function handler(
   // =======================================================
 
   if (
-    req.method ===
-    "OPTIONS"
+    req.method === "OPTIONS"
   ) {
 
     return res
@@ -1292,20 +867,18 @@ export default async function handler(
 
 
   // =======================================================
-  // METHOD
+  // GET ONLY
   // =======================================================
 
   if (
-    req.method !==
-    "GET"
+    req.method !== "GET"
   ) {
 
     return res
       .status(405)
       .json({
 
-        success:
-          false,
+        success: false,
 
         error:
           "Method not allowed."
@@ -1316,7 +889,7 @@ export default async function handler(
 
 
   // =======================================================
-  // API KEY
+  // GOOGLE API KEY
   // =======================================================
 
   const apiKey =
@@ -1329,8 +902,7 @@ export default async function handler(
       .status(500)
       .json({
 
-        success:
-          false,
+        success: false,
 
         error:
           "GOOGLE_PLACES_API_KEY is missing."
@@ -1341,16 +913,14 @@ export default async function handler(
 
 
   // =======================================================
-  // PHOTO
+  // PHOTO REQUEST
   // =======================================================
 
   const photo =
     req.query?.photo;
 
 
-  if (
-    photo
-  ) {
+  if (photo) {
 
     try {
 
@@ -1380,9 +950,7 @@ export default async function handler(
         );
 
 
-    } catch (
-      error
-    ) {
+    } catch (error) {
 
       console.error(
         "Photo error:",
@@ -1394,8 +962,7 @@ export default async function handler(
         .status(500)
         .json({
 
-          success:
-            false,
+          success: false,
 
           error:
             "Unable to retrieve photo."
@@ -1408,75 +975,35 @@ export default async function handler(
 
 
   // =======================================================
-  // LIMIT
-  // =======================================================
-
-  let limit =
-    Number(
-      req.query?.limit
-    );
-
-
-  if (
-    !Number.isFinite(
-      limit
-    )
-  ) {
-
-    limit =
-      DEFAULT_LIMIT;
-
-  }
-
-
-  limit =
-    Math.floor(
-      limit
-    );
-
-
-  limit =
-    Math.max(
-      1,
-      Math.min(
-        DEFAULT_LIMIT,
-        limit
-      )
-    );
-
-
-  // =======================================================
-  // CACHE
+  // TOP CITIES REQUEST
   // =======================================================
 
   const now =
     Date.now();
 
 
+  // =======================================================
+  // RETURN CACHE
+  // =======================================================
+
   if (
     citiesCache &&
-    citiesCacheExpires > now &&
-    citiesCache.length >= limit
+    citiesCacheExpires > now
   ) {
 
     return res
       .status(200)
       .json({
 
-        success:
-          true,
+        success: true,
 
-        cached:
-          true,
+        cached: true,
 
         count:
-          limit,
+          citiesCache.length,
 
         cities:
-          citiesCache.slice(
-            0,
-            limit
-          )
+          citiesCache
 
       });
 
@@ -1484,7 +1011,7 @@ export default async function handler(
 
 
   // =======================================================
-  // BUILD
+  // BUILD RANKING
   // =======================================================
 
   try {
@@ -1495,27 +1022,8 @@ export default async function handler(
       );
 
 
-    /*
-     * Do NOT throw just because fewer than 50
-     * cities were found.
-     *
-     * If Google gives us 20 good cities,
-     * return those 20.
-     */
-
-    if (
-      !cities.length
-    ) {
-
-      throw new Error(
-        "Google Places returned no qualifying cities."
-      );
-
-    }
-
-
     // =====================================================
-    // CACHE
+    // SAVE CACHE
     // =====================================================
 
     citiesCache =
@@ -1535,33 +1043,22 @@ export default async function handler(
       .status(200)
       .json({
 
-        success:
-          true,
+        success: true,
 
-        cached:
-          false,
+        cached: false,
 
         generatedAt:
           new Date().toISOString(),
 
         count:
-          Math.min(
-            limit,
-            cities.length
-          ),
+          cities.length,
 
-        cities:
-          cities.slice(
-            0,
-            limit
-          )
+        cities
 
       });
 
 
-  } catch (
-    error
-  ) {
+  } catch (error) {
 
     console.error(
       "Top cities error:",
@@ -1573,8 +1070,7 @@ export default async function handler(
       .status(500)
       .json({
 
-        success:
-          false,
+        success: false,
 
         error:
           "Unable to retrieve top cities.",
